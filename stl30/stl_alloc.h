@@ -66,6 +66,7 @@
 #   define _NOTHREADS
 #endif
 
+//多线程访问内存池中使用的锁相关函数
 # ifdef _PTHREADS
     // POSIX Threads
     // This is dubious, since this is likely to be a high contention
@@ -148,18 +149,22 @@ public:
 
 static void * allocate(size_t n)
 {
+    //直接调用malloc申请n字节的内存
     void *result = malloc(n);
+    //分配失败调用oom_malloc
     if (0 == result) result = oom_malloc(n);
     return result;
 }
 
 static void deallocate(void *p, size_t /* n */)
 {
+    //释放内存
     free(p);
 }
 
 static void * reallocate(void *p, size_t /* old_sz */, size_t new_sz)
 {
+    //重新申请内存
     void * result = realloc(p, new_sz);
     if (0 == result) result = oom_realloc(p, new_sz);
     return result;
@@ -186,7 +191,7 @@ void * __malloc_alloc_template<inst>::oom_malloc(size_t n)
 {
     void (* my_malloc_handler)();
     void *result;
-
+    //不断尝试分配内存，如果成功则返回指针
     for (;;) {
         my_malloc_handler = __malloc_alloc_oom_handler;
         if (0 == my_malloc_handler) { __THROW_BAD_ALLOC; }
@@ -201,7 +206,7 @@ void * __malloc_alloc_template<inst>::oom_realloc(void *p, size_t n)
 {
     void (* my_malloc_handler)();
     void *result;
-
+    //不断尝试重新分配内存，如果成功则发挥指针
     for (;;) {
         my_malloc_handler = __malloc_alloc_oom_handler;
         if (0 == my_malloc_handler) { __THROW_BAD_ALLOC; }
@@ -305,9 +310,9 @@ typedef malloc_alloc single_client_alloc;
 // different types, limiting the utility of this approach.
 #ifdef __SUNPRO_CC
 // breaks if we make these template class members:
-  enum {__ALIGN = 8};
-  enum {__MAX_BYTES = 128};
-  enum {__NFREELISTS = __MAX_BYTES/__ALIGN};
+  enum {__ALIGN = 8};//分块大小
+  enum {__MAX_BYTES = 128};//分块上界
+  enum {__NFREELISTS = __MAX_BYTES/__ALIGN};//分块数量
 #endif
 
 template <bool threads, int inst>
@@ -321,39 +326,46 @@ private:
     enum {__MAX_BYTES = 128};
     enum {__NFREELISTS = __MAX_BYTES/__ALIGN};
 # endif
+    //调整bytes为8的倍数
   static size_t ROUND_UP(size_t bytes) {
         return (((bytes) + __ALIGN-1) & ~(__ALIGN - 1));
   }
 __PRIVATE:
+  //自由链表的节点结构
+  //使用union是为了节省内存，对于没有分配的内存空间，client_data[0]指向该内存的地址
+  //该块内存上放的是下一个obj的地址，用free_list_link来表示
   union obj {
         union obj * free_list_link;
         char client_data[1];    /* The client sees this.        */
   };
 private:
 # ifdef __SUNPRO_CC
-    static obj * __VOLATILE free_list[]; 
+    static obj * __VOLATILE free_list[];
         // Specifying a size results in duplicate def for 4.1
 # else
-    static obj * __VOLATILE free_list[__NFREELISTS]; 
+    static obj * __VOLATILE free_list[__NFREELISTS];//16个free_list
 # endif
+    //根据内存大小计算free_list的位置
   static  size_t FREELIST_INDEX(size_t bytes) {
         return (((bytes) + __ALIGN-1)/__ALIGN - 1);
   }
 
+  // 申请一个大小为n的内存，如果返回多个则将多余的加入到free list中
   // Returns an object of size n, and optionally adds to size n free list.
   static void *refill(size_t n);
+  // 申请nobjs块大小为size的内存，系统可能会调整nobjs的大小，所以需要使用引用
   // Allocates a chunk for nobjs of size size.  nobjs may be reduced
   // if it is inconvenient to allocate the requested number.
   static char *chunk_alloc(size_t size, int &nobjs);
 
   // Chunk allocation state.
-  static char *start_free;
-  static char *end_free;
-  static size_t heap_size;
+  static char *start_free;//内存池起点
+  static char *end_free;//内存池终点
+  static size_t heap_size;//内存池在堆上占用的大小
 
 # ifdef __STL_SGI_THREADS
     static volatile unsigned long __node_allocator_lock;
-    static void __lock(volatile unsigned long *); 
+    static void __lock(volatile unsigned long *);
     static inline void __unlock(volatile unsigned long *);
 # endif
 
@@ -385,16 +397,17 @@ private:
     friend class lock;
 
 public:
-
+    //分配内存
   /* n must be > 0      */
   static void * allocate(size_t n)
   {
     obj * __VOLATILE * my_free_list;
     obj * __RESTRICT result;
-
+    //n大于上界直接调用第一级分配器
     if (n > (size_t) __MAX_BYTES) {
         return(malloc_alloc::allocate(n));
     }
+    获取合适的free_list位置
     my_free_list = free_list + FREELIST_INDEX(n);
     // Acquire the lock here with a constructor call.
     // This ensures that it is released in exit or during stack
@@ -404,14 +417,17 @@ public:
         lock lock_instance;
 #       endif
     result = *my_free_list;
+    //free_list中内存不足则重新申请
     if (result == 0) {
         void *r = refill(ROUND_UP(n));
         return r;
     }
+    //修改free_list指针指向下一块内存的地址
     *my_free_list = result -> free_list_link;
     return (result);
   };
 
+  //释放内存函数
   /* p may not be 0 */
   static void deallocate(void *p, size_t n)
   {
@@ -428,6 +444,7 @@ public:
         /*REFERENCED*/
         lock lock_instance;
 #       endif /* _NOTHREADS */
+    //重新加入free_list
     q -> free_list_link = *my_free_list;
     *my_free_list = q;
     // lock is released here
@@ -454,19 +471,25 @@ __default_alloc_template<threads, inst>::chunk_alloc(size_t size, int& nobjs)
     size_t total_bytes = size * nobjs;
     size_t bytes_left = end_free - start_free;
 
+    //内存大于申请所需要的空间
     if (bytes_left >= total_bytes) {
         result = start_free;
         start_free += total_bytes;
         return(result);
-    } else if (bytes_left >= size) {
+    }
+    //可以满足申请一个以上的对象空间
+    else if (bytes_left >= size) {
         nobjs = bytes_left/size;
         total_bytes = size * nobjs;
         result = start_free;
         start_free += total_bytes;
         return(result);
-    } else {
+    }
+    //需要重新申请内存
+    else {
         size_t bytes_to_get = 2 * total_bytes + ROUND_UP(heap_size >> 4);
         // Try to make use of the left-over piece.
+        // 将当前剩余的内存空间分配给合适的free_list
         if (bytes_left > 0) {
             obj * __VOLATILE * my_free_list =
                         free_list + FREELIST_INDEX(bytes_left);
@@ -475,12 +498,14 @@ __default_alloc_template<threads, inst>::chunk_alloc(size_t size, int& nobjs)
             *my_free_list = (obj *)start_free;
         }
         start_free = (char *)malloc(bytes_to_get);
+        //堆中没有合适的内存空间分配
         if (0 == start_free) {
             int i;
             obj * __VOLATILE * my_free_list, *p;
             // Try to make do with what we have.  That can't
             // hurt.  We do not try smaller requests, since that tends
             // to result in disaster on multi-process machines.
+            // 重当前free_list中查找是否有合适的内存，如果找到了，将这个内存放到内存池中，然后重新调用这个函数分配
             for (i = size; i <= __MAX_BYTES; i += __ALIGN) {
                 my_free_list = free_list + FREELIST_INDEX(i);
                 p = *my_free_list;
@@ -494,12 +519,15 @@ __default_alloc_template<threads, inst>::chunk_alloc(size_t size, int& nobjs)
                 }
             }
 	    end_free = 0;	// In case of exception.
+            //调用第一级分配器进行尝试，可能会触发异常处理函数
             start_free = (char *)malloc_alloc::allocate(bytes_to_get);
             // This should either throw an
             // exception or remedy the situation.  Thus we assume it
             // succeeded.
         }
+        //统计通过内存池已经在堆上分配的内存大小
         heap_size += bytes_to_get;
+        //修改内存池大小
         end_free = start_free + bytes_to_get;
         return(chunk_alloc(size, nobjs));
     }
@@ -519,11 +547,14 @@ void* __default_alloc_template<threads, inst>::refill(size_t n)
     obj * current_obj, * next_obj;
     int i;
 
+    //返回了一个对象的空间
     if (1 == nobjs) return(chunk);
     my_free_list = free_list + FREELIST_INDEX(n);
 
     /* Build free list in chunk */
+    //取一个空间，将剩下的加入到free_list中
       result = (obj *)chunk;
+      //my_free_list 指向的为NULL，所以不用考虑之前存在的东西
       *my_free_list = next_obj = (obj *)(chunk + n);
       for (i = 1; ; i++) {
         current_obj = next_obj;
@@ -591,7 +622,7 @@ __default_alloc_template<threads, inst>::__node_allocator_lock = 0;
 #endif
 
 template <bool threads, int inst>
-void 
+void
 __default_alloc_template<threads, inst>::__lock(volatile unsigned long *lock)
 {
     const unsigned low_spin_max = 30;  // spin cycles if we suspect uniprocessor
@@ -644,7 +675,7 @@ __default_alloc_template<threads, inst>::__unlock(volatile unsigned long *lock)
         *lock = 0;
 #   elif __mips >= 3 && (defined (_ABIN32) || defined(_ABI64))
         __lock_release(lock);
-#   else 
+#   else
         *lock = 0;
         // This is not sufficient on many multiprocessors, since
         // writes to protected variables and the lock may be reordered.
