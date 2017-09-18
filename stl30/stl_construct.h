@@ -31,20 +31,24 @@
 #ifndef __SGI_STL_INTERNAL_CONSTRUCT_H
 #define __SGI_STL_INTERNAL_CONSTRUCT_H
 
+// placement new 相关
 #include <new.h>
 
 __STL_BEGIN_NAMESPACE
 
+//调用对象的析构函数
 template <class T>
 inline void destroy(T* pointer) {
     pointer->~T();
 }
 
+//placement new, 在已经申请的内存上进行构造对象
 template <class T1, class T2>
 inline void construct(T1* p, const T2& value) {
   new (p) T1(value);
 }
 
+//no trivial destructor情况，调用对象的析构函数
 template <class ForwardIterator>
 inline void
 __destroy_aux(ForwardIterator first, ForwardIterator last, __false_type) {
@@ -52,20 +56,24 @@ __destroy_aux(ForwardIterator first, ForwardIterator last, __false_type) {
     destroy(&*first);
 }
 
-template <class ForwardIterator> 
+// 对象只有系统生成的析构函数，不做任何处理
+template <class ForwardIterator>
 inline void __destroy_aux(ForwardIterator, ForwardIterator, __true_type) {}
 
+// 利用__type_traits判断对象是否有定义析构函数，决定使用的 __destroy_aux 版本
 template <class ForwardIterator, class T>
 inline void __destroy(ForwardIterator first, ForwardIterator last, T*) {
   typedef typename __type_traits<T>::has_trivial_destructor trivial_destructor;
   __destroy_aux(first, last, trivial_destructor());
 }
 
+//处理一组对象的版本
 template <class ForwardIterator>
 inline void destroy(ForwardIterator first, ForwardIterator last) {
   __destroy(first, last, value_type(first));
 }
 
+//特化版本，specializtion
 inline void destroy(char*, char*) {}
 inline void destroy(wchar_t*, wchar_t*) {}
 
