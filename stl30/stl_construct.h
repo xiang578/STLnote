@@ -46,6 +46,9 @@ inline void destroy(T* pointer) {
 template <class T1, class T2>
 inline void construct(T1* p, const T2& value) {
   new (p) T1(value);
+  //使用opreator new分配的内存空间无法使用construct函数构造对象，需要用placement new来构造对象
+  //C++ primerP729，形式 new (place_address) type (initializers)
+  //p为内存的地址，initializers 为初始值列表，用于构造新分配的对象
 }
 
 //no trivial destructor情况，调用对象的析构函数

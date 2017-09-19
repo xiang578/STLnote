@@ -31,7 +31,7 @@
 #ifndef __SGI_STL_INTERNAL_VECTOR_H
 #define __SGI_STL_INTERNAL_VECTOR_H
 
-__STL_BEGIN_NAMESPACE 
+__STL_BEGIN_NAMESPACE
 
 #if defined(__sgi) && !defined(__GNUC__) && (_MIPS_SIM != _MIPS_SIM_ABI32)
 #pragma set woff 1174
@@ -54,16 +54,18 @@ public:
   typedef reverse_iterator<const_iterator> const_reverse_iterator;
   typedef reverse_iterator<iterator> reverse_iterator;
 #else /* __STL_CLASS_PARTIAL_SPECIALIZATION */
-  typedef reverse_iterator<const_iterator, value_type, const_reference, 
+  typedef reverse_iterator<const_iterator, value_type, const_reference,
                            difference_type>  const_reverse_iterator;
   typedef reverse_iterator<iterator, value_type, reference, difference_type>
           reverse_iterator;
 #endif /* __STL_CLASS_PARTIAL_SPECIALIZATION */
 protected:
+
+  //使用二级分配器
   typedef simple_alloc<value_type, Alloc> data_allocator;
-  iterator start;
-  iterator finish;
-  iterator end_of_storage;
+  iterator start;//申请的内存起点
+  iterator finish;//实际使用的内存终点
+  iterator end_of_storage;//申请的内存终点
   void insert_aux(iterator position, const T& x);
   void deallocate() {
     if (start) data_allocator::deallocate(start, end_of_storage - start);
@@ -75,25 +77,32 @@ protected:
     end_of_storage = finish;
   }
 public:
+  //一大堆反正都是取容器的首尾迭代器
   iterator begin() { return start; }
   const_iterator begin() const { return start; }
   iterator end() { return finish; }
   const_iterator end() const { return finish; }
   reverse_iterator rbegin() { return reverse_iterator(end()); }
-  const_reverse_iterator rbegin() const { 
-    return const_reverse_iterator(end()); 
+  const_reverse_iterator rbegin() const {
+    return const_reverse_iterator(end());
   }
   reverse_iterator rend() { return reverse_iterator(begin()); }
-  const_reverse_iterator rend() const { 
-    return const_reverse_iterator(begin()); 
+  const_reverse_iterator rend() const {
+    return const_reverse_iterator(begin());
   }
+
+  //获取容器元素的数量
   size_type size() const { return size_type(end() - begin()); }
+
+  //todo
   size_type max_size() const { return size_type(-1) / sizeof(T); }
+  //目前空间的大小
   size_type capacity() const { return size_type(end_of_storage - begin()); }
   bool empty() const { return begin() == end(); }
+  //下标运算符
   reference operator[](size_type n) { return *(begin() + n); }
   const_reference operator[](size_type n) const { return *(begin() + n); }
-
+  //构造函数
   vector() : start(0), finish(0), end_of_storage(0) {}
   vector(size_type n, const T& value) { fill_initialize(n, value); }
   vector(int n, const T& value) { fill_initialize(n, value); }
@@ -121,7 +130,7 @@ public:
     end_of_storage = finish;
   }
 #endif /* __STL_MEMBER_TEMPLATES */
-  ~vector() { 
+  ~vector() {
     destroy(start, finish);
     deallocate();
   }
@@ -201,7 +210,7 @@ public:
     return first;
   }
   void resize(size_type new_size, const T& x) {
-    if (new_size < size()) 
+    if (new_size < size())
       erase(begin() + new_size, end());
     else
       insert(end(), new_size - size(), x);
@@ -340,9 +349,9 @@ void vector<T, Alloc>::insert_aux(iterator position, const T& x) {
       new_finish = uninitialized_copy(position, finish, new_finish);
     }
 
-#       ifdef  __STL_USE_EXCEPTIONS 
+#       ifdef  __STL_USE_EXCEPTIONS
     catch(...) {
-      destroy(new_start, new_finish); 
+      destroy(new_start, new_finish);
       data_allocator::deallocate(new_start, len);
       throw;
     }
@@ -377,7 +386,7 @@ void vector<T, Alloc>::insert(iterator position, size_type n, const T& x) {
       }
     }
     else {
-      const size_type old_size = size();        
+      const size_type old_size = size();
       const size_type len = old_size + max(old_size, n);
       iterator new_start = data_allocator::allocate(len);
       iterator new_finish = new_start;
@@ -386,7 +395,7 @@ void vector<T, Alloc>::insert(iterator position, size_type n, const T& x) {
         new_finish = uninitialized_fill_n(new_finish, n, x);
         new_finish = uninitialized_copy(position, finish, new_finish);
       }
-#         ifdef  __STL_USE_EXCEPTIONS 
+#         ifdef  __STL_USE_EXCEPTIONS
       catch(...) {
         destroy(new_start, new_finish);
         data_allocator::deallocate(new_start, len);
@@ -470,8 +479,8 @@ void vector<T, Alloc>::range_insert(iterator position,
 #else /* __STL_MEMBER_TEMPLATES */
 
 template <class T, class Alloc>
-void vector<T, Alloc>::insert(iterator position, 
-                              const_iterator first, 
+void vector<T, Alloc>::insert(iterator position,
+                              const_iterator first,
                               const_iterator last) {
   if (first != last) {
     size_type n = 0;
@@ -525,7 +534,7 @@ void vector<T, Alloc>::insert(iterator position,
 #pragma reset woff 1174
 #endif
 
-__STL_END_NAMESPACE 
+__STL_END_NAMESPACE
 
 #endif /* __SGI_STL_INTERNAL_VECTOR_H */
 
