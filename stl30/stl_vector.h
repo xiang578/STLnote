@@ -67,10 +67,13 @@ protected:
   iterator finish;//实际使用的内存终点
   iterator end_of_storage;//申请的内存终点
   void insert_aux(iterator position, const T& x);
+
+  //释放内存
   void deallocate() {
     if (start) data_allocator::deallocate(start, end_of_storage - start);
   }
 
+  //申请大小为n的内存，并用value来填充
   void fill_initialize(size_type n, const T& value) {
     start = allocate_and_fill(n, value);
     finish = start + n;
@@ -78,6 +81,8 @@ protected:
   }
 public:
   //一大堆反正都是取容器的首尾迭代器
+  //反向迭代器可能在某些算法里面有特殊的作用，比如sort(v.rbegin(), v.rend())，可以实现对v进行降序排列
+  //在stl_iterator中实现方法主要将迭代器+-动作互换
   iterator begin() { return start; }
   const_iterator begin() const { return start; }
   iterator end() { return finish; }
@@ -156,6 +161,7 @@ public:
       ++finish;
     }
     else
+      //需要重新分配内存
       insert_aux(end(), x);
   }
   void swap(vector<T, Alloc>& x) {
@@ -196,19 +202,24 @@ public:
     --finish;
     destroy(finish);
   }
+  //清除某个对象
   iterator erase(iterator position) {
+    //将position后面的对象拷贝过来
     if (position + 1 != end())
       copy(position + 1, finish, position);
     --finish;
     destroy(finish);
     return position;
   }
+
+  //清除某个区间的对象
   iterator erase(iterator first, iterator last) {
     iterator i = copy(last, finish, first);
     destroy(i, finish);
     finish = finish - (last - first);
     return first;
   }
+  //重新调整大小
   void resize(size_type new_size, const T& x) {
     if (new_size < size())
       erase(begin() + new_size, end());
@@ -220,8 +231,13 @@ public:
 
 protected:
   iterator allocate_and_fill(size_type n, const T& x) {
+    //使用STL的空间配置器配置一块大小为n的内存空间
     iterator result = data_allocator::allocate(n);
+    //__STL_TRY try
+    //__STL_UNWIND catch
+    //异常处理
     __STL_TRY {
+      //调用底层函数用x填充内存
       uninitialized_fill_n(result, n, x);
       return result;
     }
@@ -287,11 +303,13 @@ protected:
 
 template <class T, class Alloc>
 inline bool operator==(const vector<T, Alloc>& x, const vector<T, Alloc>& y) {
+  //equal stl中判断两个容器是否相等的算法
   return x.size() == y.size() && equal(x.begin(), x.end(), y.begin());
 }
 
 template <class T, class Alloc>
 inline bool operator<(const vector<T, Alloc>& x, const vector<T, Alloc>& y) {
+  //比较两个容器内元素的大小，一个容器包含另一个容器一部分时，容器内元素的那个大
   return lexicographical_compare(x.begin(), x.end(), y.begin(), y.end());
 }
 
@@ -330,19 +348,25 @@ vector<T, Alloc>& vector<T, Alloc>::operator=(const vector<T, Alloc>& x) {
 
 template <class T, class Alloc>
 void vector<T, Alloc>::insert_aux(iterator position, const T& x) {
+  //供insert使用？
   if (finish != end_of_storage) {
+    //finsh所指的内存还没有被使用，所以无法使用copy函数，需要调用construct来分配内存
     construct(finish, *(finish - 1));
     ++finish;
     T x_copy = x;
+    //将postion到finish-2的元素向后移动一位
     copy_backward(position, finish - 2, finish - 1);
     *position = x_copy;
   }
   else {
+    //内存不足
     const size_type old_size = size();
+    //两倍扩充如果刚开始为0，则为1
     const size_type len = old_size != 0 ? 2 * old_size : 1;
     iterator new_start = data_allocator::allocate(len);
     iterator new_finish = new_start;
     __STL_TRY {
+      //将原来的vector拷贝到新的vector
       new_finish = uninitialized_copy(start, position, new_start);
       construct(new_finish, x);
       ++new_finish;
@@ -356,8 +380,11 @@ void vector<T, Alloc>::insert_aux(iterator position, const T& x) {
       throw;
     }
 #       endif /* __STL_USE_EXCEPTIONS */
+    //析构原容器中的对象
     destroy(begin(), end());
+    //释放内存
     deallocate();
+    //更新迭代器相关
     start = new_start;
     finish = new_finish;
     end_of_storage = new_start + len;
@@ -372,25 +399,33 @@ void vector<T, Alloc>::insert(iterator position, size_type n, const T& x) {
       const size_type elems_after = finish - position;
       iterator old_finish = finish;
       if (elems_after > n) {
+        //插入点之后到finish之间的对象数量大于n个
+        //先复制n个对象到尾部，这里相当于finsh之后的内存没有分配，不能使用copy函数
         uninitialized_copy(finish - n, finish, finish);
         finish += n;
+        //移动剩余对象，以及填充新增加的对象
         copy_backward(position, old_finish - n, old_finish);
         fill(position, position + n, x_copy);
       }
       else {
+        //插入点之后到finish之间的对象数量小于n个
+        //处理新使用的内存且需要用x填充的部分
         uninitialized_fill_n(finish, n - elems_after, x_copy);
         finish += n - elems_after;
+        //移动原来[postion,old_finish]之间的对象
         uninitialized_copy(position, old_finish, finish);
         finish += elems_after;
         fill(position, old_finish, x_copy);
       }
     }
     else {
+      //剩下的内存不够分配
       const size_type old_size = size();
       const size_type len = old_size + max(old_size, n);
       iterator new_start = data_allocator::allocate(len);
       iterator new_finish = new_start;
       __STL_TRY {
+        //复制和填充
         new_finish = uninitialized_copy(start, position, new_start);
         new_finish = uninitialized_fill_n(new_finish, n, x);
         new_finish = uninitialized_copy(position, finish, new_finish);
@@ -478,6 +513,7 @@ void vector<T, Alloc>::range_insert(iterator position,
 
 #else /* __STL_MEMBER_TEMPLATES */
 
+//插入一个范围内的对象
 template <class T, class Alloc>
 void vector<T, Alloc>::insert(iterator position,
                               const_iterator first,

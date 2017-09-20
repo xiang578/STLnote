@@ -35,8 +35,9 @@ __STL_BEGIN_NAMESPACE
 
 // Valid if copy construction is equivalent to assignment, and if the
 //  destructor is trivial.
+// 拷贝等于赋值，而且没有定义构造函数，那么可以使用这个函数
 template <class InputIterator, class ForwardIterator>
-inline ForwardIterator 
+inline ForwardIterator
 __uninitialized_copy_aux(InputIterator first, InputIterator last,
                          ForwardIterator result,
                          __true_type) {
@@ -44,7 +45,7 @@ __uninitialized_copy_aux(InputIterator first, InputIterator last,
 }
 
 template <class InputIterator, class ForwardIterator>
-ForwardIterator 
+ForwardIterator
 __uninitialized_copy_aux(InputIterator first, InputIterator last,
                          ForwardIterator result,
                          __false_type) {
@@ -92,7 +93,7 @@ __uninitialized_copy_n(InputIterator first, Size count,
                        input_iterator_tag) {
   ForwardIterator cur = result;
   __STL_TRY {
-    for ( ; count > 0 ; --count, ++first, ++cur) 
+    for ( ; count > 0 ; --count, ++first, ++cur)
       construct(&*cur, *first);
     return pair<InputIterator, ForwardIterator>(first, cur);
   }
@@ -120,7 +121,7 @@ uninitialized_copy_n(InputIterator first, Size count,
 //  destructor is trivial.
 template <class ForwardIterator, class T>
 inline void
-__uninitialized_fill_aux(ForwardIterator first, ForwardIterator last, 
+__uninitialized_fill_aux(ForwardIterator first, ForwardIterator last,
                          const T& x, __true_type)
 {
   fill(first, last, x);
@@ -128,7 +129,7 @@ __uninitialized_fill_aux(ForwardIterator first, ForwardIterator last,
 
 template <class ForwardIterator, class T>
 void
-__uninitialized_fill_aux(ForwardIterator first, ForwardIterator last, 
+__uninitialized_fill_aux(ForwardIterator first, ForwardIterator last,
                          const T& x, __false_type)
 {
   ForwardIterator cur = first;
@@ -140,15 +141,15 @@ __uninitialized_fill_aux(ForwardIterator first, ForwardIterator last,
 }
 
 template <class ForwardIterator, class T, class T1>
-inline void __uninitialized_fill(ForwardIterator first, ForwardIterator last, 
+inline void __uninitialized_fill(ForwardIterator first, ForwardIterator last,
                                  const T& x, T1*) {
   typedef typename __type_traits<T1>::is_POD_type is_POD;
   __uninitialized_fill_aux(first, last, x, is_POD());
-                   
+
 }
 
 template <class ForwardIterator, class T>
-inline void uninitialized_fill(ForwardIterator first, ForwardIterator last, 
+inline void uninitialized_fill(ForwardIterator first, ForwardIterator last,
                                const T& x) {
   __uninitialized_fill(first, last, x, value_type(first));
 }
@@ -175,14 +176,15 @@ __uninitialized_fill_n_aux(ForwardIterator first, Size n,
   __STL_UNWIND(destroy(first, cur));
 }
 
+//利用type_traits判断是否是POD类型，然后分别调用不同的填充函数
 template <class ForwardIterator, class Size, class T, class T1>
 inline ForwardIterator __uninitialized_fill_n(ForwardIterator first, Size n,
                                               const T& x, T1*) {
   typedef typename __type_traits<T1>::is_POD_type is_POD;
   return __uninitialized_fill_n_aux(first, n, x, is_POD());
-                                    
 }
 
+//利用interator_traits获取值的value_type
 template <class ForwardIterator, class Size, class T>
 inline ForwardIterator uninitialized_fill_n(ForwardIterator first, Size n,
                                             const T& x) {
@@ -208,7 +210,7 @@ __uninitialized_copy_copy(InputIterator1 first1, InputIterator1 last1,
 // Fills [result, mid) with x, and copies [first, last) into
 //  [mid, mid + (last - first)).
 template <class ForwardIterator, class T, class InputIterator>
-inline ForwardIterator 
+inline ForwardIterator
 __uninitialized_fill_copy(ForwardIterator result, ForwardIterator mid,
                           const T& x,
                           InputIterator first, InputIterator last) {
