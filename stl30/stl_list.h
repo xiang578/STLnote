@@ -51,6 +51,7 @@ struct __list_iterator {
   typedef __list_iterator<T, const T&, const T*> const_iterator;
   typedef __list_iterator<T, Ref, Ptr>           self;
 
+  //Iterator traits 必须类型
   typedef bidirectional_iterator_tag iterator_category;
   typedef T value_type;
   typedef Ptr pointer;
@@ -61,32 +62,37 @@ struct __list_iterator {
 
   link_type node;
 
+  //构造函数
   __list_iterator(link_type x) : node(x) {}
   __list_iterator() {}
   __list_iterator(const iterator& x) : node(x.node) {}
 
+  //迭代器判断相关，可以在循环中使用
   bool operator==(const self& x) const { return node == x.node; }
   bool operator!=(const self& x) const { return node != x.node; }
+  //返回实际指向对象的值
   reference operator*() const { return (*node).data; }
 
 #ifndef __SGI_STL_NO_ARROW_OPERATOR
   pointer operator->() const { return &(operator*()); }
 #endif /* __SGI_STL_NO_ARROW_OPERATOR */
 
-  self& operator++() { 
+  self& operator++() {
     node = (link_type)((*node).next);
     return *this;
   }
-  self operator++(int) { 
+  //前++，先增加再使用
+  self operator++(int) {
     self tmp = *this;
     ++*this;
     return tmp;
   }
-  self& operator--() { 
+  //后++，先拷贝一个备份，将本身增加，然后返回副本
+  self& operator--() {
     node = (link_type)((*node).prev);
     return *this;
   }
-  self operator--(int) { 
+  self operator--(int) {
     self tmp = *this;
     --*this;
     return tmp;
@@ -120,8 +126,9 @@ class list {
 protected:
   typedef void* void_pointer;
   typedef __list_node<T> list_node;
+  //空间配置器
   typedef simple_alloc<list_node, Alloc> list_node_allocator;
-public:      
+public:
   typedef T value_type;
   typedef value_type* pointer;
   typedef const value_type* const_pointer;
@@ -144,7 +151,7 @@ public:
   const_reverse_iterator;
   typedef reverse_bidirectional_iterator<iterator, value_type, reference,
   difference_type>
-  reverse_iterator; 
+  reverse_iterator;
 #endif /* __STL_CLASS_PARTIAL_SPECIALIZATION */
 
 protected:
@@ -165,12 +172,13 @@ protected:
   }
 
 protected:
-  void empty_initialize() { 
+  //空链表的建立，并将节点指向自己
+  void empty_initialize() {
     node = get_node();
     node->next = node;
     node->prev = node;
   }
-
+  //创建链表，插入n个值为value的节点
   void fill_initialize(size_type n, const T& value) {
     empty_initialize();
     __STL_TRY {
@@ -209,6 +217,8 @@ protected:
   link_type node;
 
 public:
+
+  //默认构造函数
   list() { empty_initialize(); }
 
   iterator begin() { return (link_type)((*node).next); }
@@ -216,25 +226,28 @@ public:
   iterator end() { return node; }
   const_iterator end() const { return node; }
   reverse_iterator rbegin() { return reverse_iterator(end()); }
-  const_reverse_iterator rbegin() const { 
-    return const_reverse_iterator(end()); 
+  const_reverse_iterator rbegin() const {
+    return const_reverse_iterator(end());
   }
   reverse_iterator rend() { return reverse_iterator(begin()); }
-  const_reverse_iterator rend() const { 
+  const_reverse_iterator rend() const {
     return const_reverse_iterator(begin());
-  } 
+  }
   bool empty() const { return node->next == node; }
+  //效率低
   size_type size() const {
     size_type result = 0;
     distance(begin(), end(), result);
     return result;
   }
+  //size_type为无符号数，返回一个-1就是无符号里面最大的，因为-1的补码形式为0xffffffff
   size_type max_size() const { return size_type(-1); }
   reference front() { return *begin(); }
   const_reference front() const { return *begin(); }
   reference back() { return *(--end()); }
   const_reference back() const { return *(--end()); }
   void swap(list<T, Alloc>& x) { __STD::swap(node, x.node); }
+  //双向链表的插入
   iterator insert(iterator position, const T& x) {
     link_type tmp = create_node(x);
     tmp->next = position.node;
@@ -276,7 +289,7 @@ public:
   void clear();
 
   void pop_front() { erase(begin()); }
-  void pop_back() { 
+  void pop_back() {
     iterator tmp = end();
     erase(--tmp);
   }
@@ -307,31 +320,35 @@ public:
   list<T, Alloc>& operator=(const list<T, Alloc>& x);
 
 protected:
+  //将[fisrt,last)的节点移动position前面
   void transfer(iterator position, iterator first, iterator last) {
     if (position != last) {
       (*(link_type((*last.node).prev))).next = position.node;
       (*(link_type((*first.node).prev))).next = last.node;
-      (*(link_type((*position.node).prev))).next = first.node;  
+      (*(link_type((*position.node).prev))).next = first.node;
       link_type tmp = link_type((*position.node).prev);
       (*position.node).prev = (*last.node).prev;
-      (*last.node).prev = (*first.node).prev; 
+      (*last.node).prev = (*first.node).prev;
       (*first.node).prev = tmp;
     }
   }
 
 public:
+  //将链表x移动到position前面
   void splice(iterator position, list& x) {
-    if (!x.empty()) 
+    if (!x.empty())
       transfer(position, x.begin(), x.end());
   }
+  //移动链表中元素i
   void splice(iterator position, list&, iterator i) {
     iterator j = i;
     ++j;
     if (position == i || position == j) return;
     transfer(position, i, j);
   }
+  //移动区间
   void splice(iterator position, list&, iterator first, iterator last) {
-    if (first != last) 
+    if (first != last)
       transfer(position, first, last);
   }
   void remove(const T& value);
@@ -429,7 +446,7 @@ void list<T, Alloc>::resize(size_type new_size, const T& x)
     insert(end(), new_size - len, x);
 }
 
-template <class T, class Alloc> 
+template <class T, class Alloc>
 void list<T, Alloc>::clear()
 {
   link_type cur = (link_type) node->next;
@@ -458,6 +475,7 @@ list<T, Alloc>& list<T, Alloc>::operator=(const list<T, Alloc>& x) {
   return *this;
 }
 
+//删除值为value的node
 template <class T, class Alloc>
 void list<T, Alloc>::remove(const T& value) {
   iterator first = begin();
@@ -470,6 +488,7 @@ void list<T, Alloc>::remove(const T& value) {
   }
 }
 
+//有序链表去重
 template <class T, class Alloc>
 void list<T, Alloc>::unique() {
   iterator first = begin();
@@ -485,6 +504,7 @@ void list<T, Alloc>::unique() {
   }
 }
 
+//合并两个有序的链表
 template <class T, class Alloc>
 void list<T, Alloc>::merge(list<T, Alloc>& x) {
   iterator first1 = begin();
@@ -502,6 +522,8 @@ void list<T, Alloc>::merge(list<T, Alloc>& x) {
   if (first2 != last2) transfer(last1, first2, last2);
 }
 
+//链表反转
+//遍历链表，每次取一个node，插入到表头
 template <class T, class Alloc>
 void list<T, Alloc>::reverse() {
   if (node->next == node || link_type(node->next)->next == node) return;
@@ -510,14 +532,18 @@ void list<T, Alloc>::reverse() {
   while (first != end()) {
     iterator old = first;
     ++first;
+    //每次一操作之后begin()指向的对象都会被改变
     transfer(begin(), old, first);
   }
-}    
+}
 
+//排序，最多排序2的64次-1个元素
+//归并排序
 template <class T, class Alloc>
 void list<T, Alloc>::sort() {
   if (node->next == node || link_type(node->next)->next == node) return;
   list<T, Alloc> carry;
+  //每个桶放置的对象个数为2^i
   list<T, Alloc> counter[64];
   int fill = 0;
   while (!empty()) {
@@ -526,17 +552,19 @@ void list<T, Alloc>::sort() {
     while(i < fill && !counter[i].empty()) {
       counter[i].merge(carry);
       carry.swap(counter[i++]);
+      //把对象从counter[i]中移除来，再决定是和下一个桶合并或者放入到下一个桶中
     }
-    carry.swap(counter[i]);         
+    carry.swap(counter[i]);
     if (i == fill) ++fill;
-  } 
-
+  }
+  //最后合并多个桶
   for (int i = 1; i < fill; ++i) counter[i].merge(counter[i-1]);
   swap(counter[fill-1]);
 }
 
 #ifdef __STL_MEMBER_TEMPLATES
 
+//按条件删除
 template <class T, class Alloc> template <class Predicate>
 void list<T, Alloc>::remove_if(Predicate pred) {
   iterator first = begin();
@@ -581,6 +609,7 @@ void list<T, Alloc>::merge(list<T, Alloc>& x, StrictWeakOrdering comp) {
   if (first2 != last2) transfer(last1, first2, last2);
 }
 
+//传入比较函数
 template <class T, class Alloc> template <class StrictWeakOrdering>
 void list<T, Alloc>::sort(StrictWeakOrdering comp) {
   if (node->next == node || link_type(node->next)->next == node) return;
@@ -594,9 +623,9 @@ void list<T, Alloc>::sort(StrictWeakOrdering comp) {
       counter[i].merge(carry, comp);
       carry.swap(counter[i++]);
     }
-    carry.swap(counter[i]);         
+    carry.swap(counter[i]);
     if (i == fill) ++fill;
-  } 
+  }
 
   for (int i = 1; i < fill; ++i) counter[i].merge(counter[i-1], comp);
   swap(counter[fill-1]);
@@ -608,7 +637,7 @@ void list<T, Alloc>::sort(StrictWeakOrdering comp) {
 #pragma reset woff 1174
 #endif
 
-__STL_END_NAMESPACE 
+__STL_END_NAMESPACE
 
 #endif /* __SGI_STL_INTERNAL_LIST_H */
 
