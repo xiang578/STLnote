@@ -36,6 +36,9 @@ __STL_BEGIN_NAMESPACE
 #pragma set woff 1209
 #endif
 
+//heap需要支持随机访问迭代器
+//push_heap需要对象已经进入容器
+//priority_queue中已经实现
 template <class RandomAccessIterator, class Distance, class T>
 void __push_heap(RandomAccessIterator first, Distance holeIndex,
                  Distance topIndex, T value) {
@@ -44,14 +47,14 @@ void __push_heap(RandomAccessIterator first, Distance holeIndex,
     *(first + holeIndex) = *(first + parent);
     holeIndex = parent;
     parent = (holeIndex - 1) / 2;
-  }    
+  }
   *(first + holeIndex) = value;
 }
 
 template <class RandomAccessIterator, class Distance, class T>
 inline void __push_heap_aux(RandomAccessIterator first,
                             RandomAccessIterator last, Distance*, T*) {
-  __push_heap(first, Distance((last - first) - 1), Distance(0), 
+  __push_heap(first, Distance((last - first) - 1), Distance(0),
               T(*(last - 1)));
 }
 
@@ -76,7 +79,7 @@ template <class RandomAccessIterator, class Compare, class Distance, class T>
 inline void __push_heap_aux(RandomAccessIterator first,
                             RandomAccessIterator last, Compare comp,
                             Distance*, T*) {
-  __push_heap(first, Distance((last - first) - 1), Distance(0), 
+  __push_heap(first, Distance((last - first) - 1), Distance(0),
               T(*(last - 1)), comp);
 }
 
@@ -86,12 +89,14 @@ inline void push_heap(RandomAccessIterator first, RandomAccessIterator last,
   __push_heap_aux(first, last, comp, distance_type(first), value_type(first));
 }
 
+//pop相关，最后对象需要自己从容器中移除
 template <class RandomAccessIterator, class Distance, class T>
 void __adjust_heap(RandomAccessIterator first, Distance holeIndex,
                    Distance len, T value) {
-  Distance topIndex = holeIndex;
-  Distance secondChild = 2 * holeIndex + 2;
+  Distance topIndex = holeIndex;//根节点编号
+  Distance secondChild = 2 * holeIndex + 2;//根节点的右子节点编号
   while (secondChild < len) {
+    //取比较小的那个子节点
     if (*(first + secondChild) < *(first + (secondChild - 1)))
       secondChild--;
     *(first + holeIndex) = *(first + secondChild);
@@ -102,13 +107,15 @@ void __adjust_heap(RandomAccessIterator first, Distance holeIndex,
     *(first + holeIndex) = *(first + (secondChild - 1));
     holeIndex = secondChild - 1;
   }
+  //将value放在holeIndex位置上，然后再更新first到holeIndex的序列，这样可以减少操作？
   __push_heap(first, holeIndex, topIndex, value);
 }
 
 template <class RandomAccessIterator, class T, class Distance>
 inline void __pop_heap(RandomAccessIterator first, RandomAccessIterator last,
                        RandomAccessIterator result, T value, Distance*) {
-  *result = *first;
+  *result = *first;//把第一个对象放在容器末尾
+  //value保存的原序列尾元素
   __adjust_heap(first, Distance(0), Distance(last - first), value);
 }
 
@@ -169,7 +176,7 @@ void __make_heap(RandomAccessIterator first, RandomAccessIterator last, T*,
   if (last - first < 2) return;
   Distance len = last - first;
   Distance parent = (len - 2)/2;
-    
+
   while (true) {
     __adjust_heap(first, parent, len, T(*(first + parent)));
     if (parent == 0) return;
@@ -188,8 +195,9 @@ void __make_heap(RandomAccessIterator first, RandomAccessIterator last,
   if (last - first < 2) return;
   Distance len = last - first;
   Distance parent = (len - 2)/2;
-    
+
   while (true) {
+    //调整第parent个对象
     __adjust_heap(first, parent, len, T(*(first + parent)), comp);
     if (parent == 0) return;
     parent--;
@@ -202,6 +210,7 @@ inline void make_heap(RandomAccessIterator first, RandomAccessIterator last,
   __make_heap(first, last, comp, value_type(first), distance_type(first));
 }
 
+//每次取出根节点对象，直到容易为空
 template <class RandomAccessIterator>
 void sort_heap(RandomAccessIterator first, RandomAccessIterator last) {
   while (last - first > 1) pop_heap(first, last--);
