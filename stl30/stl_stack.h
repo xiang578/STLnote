@@ -34,6 +34,7 @@
 __STL_BEGIN_NAMESPACE
 
 #ifndef __STL_LIMITED_DEFAULT_TEMPLATES
+//默认使用双端队列来实现，可以指定符合要求的容器
 template <class T, class Sequence = deque<T> >
 #else
 template <class T, class Sequence>
